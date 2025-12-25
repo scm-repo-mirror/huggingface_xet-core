@@ -126,22 +126,27 @@ async fn smudge_file(arg: &SmudgeArg) -> Result<()> {
 }
 
 async fn smudge(name: Arc<str>, mut reader: impl Read, output_path: PathBuf) -> Result<()> {
+    use data::configurations::TranslatorConfig;
+    use file_reconstruction::DataOutput;
+
     let mut input = String::new();
     reader.read_to_string(&mut input)?;
 
     let xet_file: XetFileInfo = serde_json::from_str(&input)
         .map_err(|_| anyhow::anyhow!("Failed to parse xet file info. Please check the format."))?;
 
-    // LocalClient expects the xorbs directory path (same as TranslatorConfig::local_config uses)
-    let xorbs_path = std::env::current_dir()?.join("xet").join("xorbs");
-    let client = cas_client::LocalClient::new(xorbs_path)?;
-    let downloader = data::FileDownloader::new(client);
+    // Use local config pointing to current directory
+    let cas_path = std::env::current_dir()?;
+    let config = TranslatorConfig::local_config(cas_path)?;
+    let downloader = data::FileDownloader::new(config.into()).await?;
+
+    let output = DataOutput::write_in_file(&output_path);
 
     downloader
         .smudge_file_from_hash(
             &xet_file.merkle_hash().map_err(|_| anyhow::anyhow!("Xet hash is corrupted"))?,
             name,
-            output_path,
+            output,
             None,
             None,
         )

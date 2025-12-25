@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use cas_client::Client;
@@ -7,18 +7,28 @@ use file_reconstruction::{DataOutput, FileReconstructor};
 use merklehash::MerkleHash;
 use progress_tracking::item_tracking::ItemProgressUpdater;
 use tracing::instrument;
+use ulid::Ulid;
 
+use crate::configurations::TranslatorConfig;
 use crate::errors::*;
 use crate::prometheus_metrics;
+use crate::remote_client_interface::create_remote_client;
 
 /// Manages the download of files based on a hash or pointer file.
 pub struct FileDownloader {
+    config: Arc<TranslatorConfig>,
     client: Arc<dyn Client>,
 }
 
 impl FileDownloader {
-    pub fn new(client: Arc<dyn Client>) -> Self {
-        Self { client }
+    pub async fn new(config: Arc<TranslatorConfig>) -> Result<Self> {
+        let session_id = config
+            .session_id
+            .as_ref()
+            .map(Cow::Borrowed)
+            .unwrap_or_else(|| Cow::Owned(Ulid::new().to_string()));
+        let client = create_remote_client(&config, &session_id, false)?;
+        Ok(Self { config, client })
     }
 
     #[instrument(skip_all, name = "FileDownloader::smudge_file_from_hash", fields(hash=file_id.hex()))]
@@ -26,15 +36,14 @@ impl FileDownloader {
         &self,
         file_id: &MerkleHash,
         file_name: Arc<str>,
-        output_path: PathBuf,
+        output: DataOutput,
         range: Option<FileRange>,
         progress_updater: Option<Arc<ItemProgressUpdater>>,
     ) -> Result<u64> {
         let file_progress_tracker = progress_updater.map(|p| ItemProgressUpdater::item_tracker(&p, file_name, None));
 
-        let output = DataOutput::write_in_file(output_path);
-
-        let mut reconstructor = FileReconstructor::new(&self.client, *file_id, output);
+        let mut reconstructor =
+            FileReconstructor::new(&self.client, *file_id, output).with_cache(&self.config.data_config.cache_config);
 
         if let Some(range) = range {
             reconstructor = reconstructor.with_byte_range(range);

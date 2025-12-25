@@ -5,7 +5,11 @@ use cas_client::{Client, RemoteClient};
 use crate::configurations::*;
 use crate::errors::Result;
 
-pub fn create_remote_client(config: &TranslatorConfig, session_id: &str, dry_run: bool) -> Result<Arc<dyn Client>> {
+pub(crate) fn create_remote_client(
+    config: &TranslatorConfig,
+    session_id: &str,
+    dry_run: bool,
+) -> Result<Arc<dyn Client>> {
     let cas_storage_config = &config.data_config;
 
     match cas_storage_config.endpoint {

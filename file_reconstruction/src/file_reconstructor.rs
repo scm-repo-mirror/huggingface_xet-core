@@ -96,9 +96,9 @@ impl FileReconstructor {
 
     /// Sets the cache configuration for V1 reconstruction.
     /// This is used when running with the V1 reconstruction algorithm.
-    pub fn with_cache(self, cache_config: &Option<CacheConfig>) -> Self {
+    pub fn with_cache(self, cache_config: &CacheConfig) -> Self {
         Self {
-            cache_config: cache_config.clone(),
+            cache_config: Some(cache_config.clone()),
             ..self
         }
     }

@@ -7,6 +7,7 @@ use cas_client::CacheConfig;
 use cas_client::remote_client::PREFIX_DEFAULT;
 use cas_object::CompressionScheme;
 use deduplication::DeduplicationMetrics;
+use file_reconstruction::DataOutput;
 use lazy_static::lazy_static;
 use mdb_shard::Sha256;
 use progress_tracking::TrackingProgressUpdater;
@@ -20,7 +21,6 @@ use xet_runtime::{GlobalSemaphoreHandle, XetRuntime, global_semaphore_handle, xe
 use crate::configurations::*;
 use crate::errors::DataProcessingError;
 use crate::file_upload_session::CONCURRENT_FILE_INGESTION_LIMITER;
-use crate::remote_client_interface::create_remote_client;
 use crate::{FileDownloader, FileUploadSession, XetFileInfo, errors};
 
 lazy_static! {
@@ -227,8 +227,7 @@ pub async fn download_async(
     )?;
     Span::current().record("session_id", &config.session_id);
 
-    let client = create_remote_client(&config, config.session_id.as_deref().unwrap_or(""), false)?;
-    let processor = Arc::new(FileDownloader::new(client));
+    let processor = Arc::new(FileDownloader::new(config.into()).await?);
     let updaters = match progress_updaters {
         None => vec![None; file_infos.len()],
         Some(updaters) => updaters.into_iter().map(Some).collect(),
@@ -300,8 +299,10 @@ async fn smudge_file(
     // Wrap the progress updater in the proper tracking struct.
     let progress_updater = progress_updater.map(ItemProgressUpdater::new);
 
+    let output = DataOutput::write_in_file(&path);
+
     downloader
-        .smudge_file_from_hash(&file_info.merkle_hash()?, file_path.into(), path, None, progress_updater)
+        .smudge_file_from_hash(&file_info.merkle_hash()?, file_path.into(), output, None, progress_updater)
         .await?;
 
     Ok(file_path.to_string())

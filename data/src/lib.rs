@@ -7,7 +7,7 @@ mod file_downloader;
 mod file_upload_session;
 pub mod migration_tool;
 mod prometheus_metrics;
-pub mod remote_client_interface;
+mod remote_client_interface;
 mod sha256;
 mod shard_interface;
 mod xet_file;
