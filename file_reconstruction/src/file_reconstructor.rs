@@ -116,8 +116,9 @@ impl FileReconstructor {
 
     /// Runs the file reconstruction using the appropriate algorithm.
     /// Uses V1 or V2 based on the `use_v1_reconstruction` override or config setting.
-    pub async fn run(self) -> Result<()> {
-        let use_v1 = self.use_v1_reconstructor.unwrap_or(self.config.use_v1_reconstructor);
+    /// Returns the number of bytes written.
+    pub async fn run(self) -> Result<u64> {
+        let use_v1 = self.use_v1_reconstructor.unwrap_or(self.config.use_v1);
 
         info!(
             file_hash = %self.file_hash,
@@ -133,7 +134,7 @@ impl FileReconstructor {
         };
 
         match &result {
-            Ok(()) => info!("File reconstruction completed successfully"),
+            Ok(bytes_written) => info!(bytes_written, "File reconstruction completed successfully"),
             Err(e) => info!(error = %e, "File reconstruction failed"),
         }
 
@@ -141,7 +142,8 @@ impl FileReconstructor {
     }
 
     /// Runs file reconstruction using the V1 algorithm (FileReconstructorV1).
-    pub async fn run_v1(self) -> Result<()> {
+    /// Returns the number of bytes written.
+    pub async fn run_v1(self) -> Result<u64> {
         let Self {
             client,
             file_hash,
@@ -156,33 +158,34 @@ impl FileReconstructor {
 
         let v1_reconstructor = FileReconstructorV1::new(client, &cache_config);
 
-        match output {
+        let bytes_written = match output {
             DataOutput::File { path, offset: _ } => {
                 if xet_config().client.reconstruct_write_sequentially {
                     let output = sequential_output_from_filepath(&path).map_err(FileReconstructionError::from)?;
                     v1_reconstructor
                         .get_file_with_sequential_writer(&file_hash, byte_range, output, progress_updater)
-                        .await?;
+                        .await?
                 } else {
                     let writer = SeekingOutputProvider::new_file_provider(path);
                     v1_reconstructor
                         .get_file_with_parallel_writer(&file_hash, byte_range, &writer, progress_updater)
-                        .await?;
+                        .await?
                 }
             },
             DataOutput::SequentialWriter(writer) => {
                 let output = sequential_output_from_writer(writer);
                 v1_reconstructor
                     .get_file_with_sequential_writer(&file_hash, byte_range, output, progress_updater)
-                    .await?;
+                    .await?
             },
-        }
+        };
 
-        Ok(())
+        Ok(bytes_written)
     }
 
-    /// Runs through the file reconstruction process using the new controlled method.  
-    pub async fn run_v2(self) -> Result<()> {
+    /// Runs through the file reconstruction process using the new controlled method.
+    /// Returns the number of bytes written.
+    pub async fn run_v2(self) -> Result<u64> {
         let Self {
             client,
             file_hash,
@@ -290,8 +293,7 @@ impl FileReconstructor {
         // Finish the data writer and wait for all data to be written.
         data_writer.finish().await?;
 
-        // And we're done!
-        Ok(())
+        Ok(total_bytes_scheduled)
     }
 }
 
@@ -1000,7 +1002,7 @@ mod tests {
         file_path: &std::path::Path,
         range: FileRange,
         config: ReconstructionConfig,
-    ) -> Result<()> {
+    ) -> Result<u64> {
         FileReconstructor::new(&(client.clone() as Arc<dyn Client>), file_hash, DataOutput::write_in_file(file_path))
             .with_byte_range(range)
             .with_config(config)

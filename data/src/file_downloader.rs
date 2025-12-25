@@ -53,10 +53,7 @@ impl FileDownloader {
             reconstructor = reconstructor.with_progress_updater(tracker);
         }
 
-        reconstructor.run().await?;
-
-        // TODO: Return actual bytes written from FileReconstructor
-        let n_bytes = 0u64;
+        let n_bytes = reconstructor.run().await?;
         prometheus_metrics::FILTER_BYTES_SMUDGED.inc_by(n_bytes);
 
         Ok(n_bytes)

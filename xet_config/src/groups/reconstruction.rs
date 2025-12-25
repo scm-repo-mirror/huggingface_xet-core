@@ -59,8 +59,8 @@ crate::config_group!({
     ///
     /// The default value is false.
     ///
-    /// Use the environment variable `HF_XET_RECONSTRUCTION_USE_V1_RECONSTRUCTOR` to set this value.
-    ref use_v1_reconstructor: bool = false;
+    /// Use the environment variable `HF_XET_RECONSTRUCTION_USE_V1` to set this value.
+    ref use_v1: bool = false;
 
     /// Whether to use vectorized writes (write_vectored) during file reconstruction.
     /// When true, multiple pending writes are batched and written using write_vectored.
