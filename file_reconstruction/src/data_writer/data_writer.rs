@@ -35,10 +35,10 @@ pub trait DataWriter: Send + Sync + 'static {
         data_future: DataFuture,
     ) -> Result<()>;
 
-    /// Waits until all data has been written.
+    /// Waits until all data has been written and returns the number of bytes written.
     ///
     /// Once this method is called, further calls to set_next_term_data_source will fail.
-    async fn finish(&self) -> Result<()>;
+    async fn finish(&self) -> Result<u64>;
 }
 
 /// Creates a new data writer from the given output specification.

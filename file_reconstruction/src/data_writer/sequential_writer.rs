@@ -267,7 +267,8 @@ impl DataWriter for SequentialWriter {
     }
 
     /// Wait for the background writer to finish and all tasks to complete.
-    async fn finish(&self) -> Result<()> {
+    /// Returns the number of bytes written.
+    async fn finish(&self) -> Result<u64> {
         self.error_state.check()?;
 
         let expected_bytes = {
@@ -313,7 +314,7 @@ impl DataWriter for SequentialWriter {
             )));
         }
 
-        Ok(())
+        Ok(actual_bytes)
     }
 }
 

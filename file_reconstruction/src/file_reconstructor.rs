@@ -291,9 +291,14 @@ impl FileReconstructor {
         );
 
         // Finish the data writer and wait for all data to be written.
-        data_writer.finish().await?;
+        let bytes_written = data_writer.finish().await?;
 
-        Ok(total_bytes_scheduled)
+        debug_assert_eq!(
+            bytes_written, total_bytes_scheduled,
+            "Bytes written ({bytes_written}) should match total bytes scheduled ({total_bytes_scheduled})"
+        );
+
+        Ok(bytes_written)
     }
 }
 
