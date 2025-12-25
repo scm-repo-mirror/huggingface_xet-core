@@ -42,7 +42,7 @@ crate::config_group!({
     /// The default value is 15 minutes.
     ///
     /// Use the environment variable `HF_XET_RECONSTRUCTION_TARGET_BLOCK_COMPLETION_TIME` to set this value.
-    ref target_block_completion_time: Duration = Duration::from_mins(15);
+    ref target_block_completion_time: Duration = Duration::from_secs(15 * 60);
 
     /// The minimum size of the prefetch buffer during reconstruction.
     /// The prefetch system will maintain terms representing at least this much always prefetched,
