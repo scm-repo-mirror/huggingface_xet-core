@@ -255,7 +255,7 @@ impl LocalTestServer {
 
         tokio::time::sleep(Duration::from_millis(50)).await;
 
-        let remote_client = RemoteClient::new(&endpoint, &None, &None, "test-session", false, "test-agent");
+        let remote_client = RemoteClient::new(&endpoint, &None, "test-session", false, "test-agent");
 
         Self {
             endpoint,
@@ -305,7 +305,9 @@ mod tests {
 
     /// Verifies basic server operations: upload, reconstruction (full/range/batch/multi-xorb),
     /// file info, dedup queries, and fetch_term endpoint.
-    async fn check_basic_correctness(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_basic_correctness() {
+        let server = LocalTestServer::start().await;
         // Upload via RemoteClient, verify via LocalClient
         let file = server
             .remote_client()
@@ -421,7 +423,9 @@ mod tests {
     }
 
     /// Tests that invalid requests return appropriate error responses.
-    async fn check_error_handling(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_error_handling() {
+        let server = LocalTestServer::start().await;
         let http_client = reqwest::Client::new();
 
         // Nonexistent file hash for reconstruction
@@ -447,7 +451,9 @@ mod tests {
     }
 
     /// Verifies that reconstruction responses contain valid HTTP URLs.
-    async fn check_url_transformation(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_url_transformation() {
+        let server = LocalTestServer::start().await;
         let http_client = reqwest::Client::new();
 
         // Single XORB file
@@ -523,7 +529,9 @@ mod tests {
     }
 
     /// Verifies reconstruction term hashes match the uploaded file's expected terms.
-    async fn check_reconstruction_term_hashes_match(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_reconstruction_term_hashes_match() {
+        let server = LocalTestServer::start().await;
         // Upload a multi-term file
         let term_spec = &[(1, (0, 3)), (2, (0, 2)), (1, (3, 5))];
         let file = server.local_client().upload_random_file(term_spec, CHUNK_SIZE).await.unwrap();
@@ -547,7 +555,9 @@ mod tests {
     }
 
     /// Verifies that reconstruction data can be fetched and downloaded file matches expected data.
-    async fn check_downloaded_terms_match_expected_data(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_downloaded_terms_match_expected_data() {
+        let server = LocalTestServer::start().await;
         // Upload a file with known term structure
         let term_spec = &[(1, (0, 4)), (2, (0, 3))];
         let file = server.local_client().upload_random_file(term_spec, CHUNK_SIZE).await.unwrap();
@@ -582,7 +592,9 @@ mod tests {
     }
 
     /// Verifies that the complete file can be reconstructed by concatenating term data.
-    async fn check_complete_file_reconstruction(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_complete_file_reconstruction() {
+        let server = LocalTestServer::start().await;
         // Upload a multi-term file
         let term_spec = &[(1, (0, 3)), (2, (0, 2)), (1, (3, 5))];
         let file = server.local_client().upload_random_file(term_spec, CHUNK_SIZE).await.unwrap();
@@ -604,7 +616,9 @@ mod tests {
     }
 
     /// Verifies chunk hashes in RandomFileContents match expected values.
-    async fn check_chunk_hashes_correctness(server: &LocalTestServer) {
+    #[tokio::test]
+    async fn test_chunk_hashes_correctness() {
+        let server = LocalTestServer::start().await;
         let file = server
             .local_client()
             .upload_random_file(&[(1, (0, 3))], CHUNK_SIZE)
@@ -624,23 +638,11 @@ mod tests {
         }
     }
 
-    /// Main test that runs all server checks with a single shared server instance.
+    /// Tests that server creation works correctly.
     #[tokio::test]
-    async fn test_local_server() {
-        // Verify server creation works
+    async fn test_server_creation() {
         let temp_client = LocalClient::temporary().await.unwrap();
         let temp_server = LocalServer::from_client(temp_client.clone(), "127.0.0.1".to_string(), 0);
         assert!(temp_server.client().get_all_entries().unwrap().is_empty());
-
-        // Start test server for HTTP operations
-        let server = LocalTestServer::start().await;
-
-        check_basic_correctness(&server).await;
-        check_error_handling(&server).await;
-        check_url_transformation(&server).await;
-        check_reconstruction_term_hashes_match(&server).await;
-        check_downloaded_terms_match_expected_data(&server).await;
-        check_complete_file_reconstruction(&server).await;
-        check_chunk_hashes_correctness(&server).await;
     }
 }

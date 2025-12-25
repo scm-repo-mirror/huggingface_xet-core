@@ -4,10 +4,9 @@ use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 
 use anyhow::Result;
-use cas_client::SeekingOutputProvider;
 use clap::{Args, Parser, Subcommand};
 use data::configurations::*;
-use data::{FileDownloader, FileUploadSession, XetFileInfo};
+use data::{FileUploadSession, XetFileInfo};
 use xet_runtime::XetRuntime;
 
 #[derive(Parser)]
@@ -121,26 +120,28 @@ async fn smudge_file(arg: &SmudgeArg) -> Result<()> {
         None => Box::new(std::io::stdin()),
     };
 
-    let writer = SeekingOutputProvider::new_file_provider(arg.dest.clone());
-    smudge(arg.dest.to_string_lossy().into(), reader, writer).await?;
+    smudge(arg.dest.to_string_lossy().into(), reader, arg.dest.clone()).await?;
 
     Ok(())
 }
 
-async fn smudge(name: Arc<str>, mut reader: impl Read, writer: SeekingOutputProvider) -> Result<()> {
+async fn smudge(name: Arc<str>, mut reader: impl Read, output_path: PathBuf) -> Result<()> {
     let mut input = String::new();
     reader.read_to_string(&mut input)?;
 
     let xet_file: XetFileInfo = serde_json::from_str(&input)
         .map_err(|_| anyhow::anyhow!("Failed to parse xet file info. Please check the format."))?;
 
-    let downloader = FileDownloader::new(TranslatorConfig::local_config(std::env::current_dir()?)?.into()).await?;
+    // LocalClient expects the xorbs directory path (same as TranslatorConfig::local_config uses)
+    let xorbs_path = std::env::current_dir()?.join("xet").join("xorbs");
+    let client = cas_client::LocalClient::new(xorbs_path)?;
+    let downloader = data::FileDownloader::new(client);
 
     downloader
         .smudge_file_from_hash(
             &xet_file.merkle_hash().map_err(|_| anyhow::anyhow!("Xet hash is corrupted"))?,
             name,
-            writer,
+            output_path,
             None,
             None,
         )

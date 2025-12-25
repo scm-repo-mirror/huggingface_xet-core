@@ -591,22 +591,21 @@ mod tests {
     /// * `output_path`: path to write the hydrated/original file
     async fn test_smudge_file(cas_path: &Path, pointer_path: &Path, output_path: &Path) {
         let mut reader = File::open(pointer_path).unwrap();
-        let writer = SeekingOutputProvider::new_file_provider(output_path.to_path_buf());
 
         let mut input = String::new();
         reader.read_to_string(&mut input).unwrap();
 
         let xet_file = serde_json::from_str::<XetFileInfo>(&input).unwrap();
 
-        let translator = FileDownloader::new(TranslatorConfig::local_config(cas_path).unwrap().into())
-            .await
-            .unwrap();
+        let config = TranslatorConfig::local_config(cas_path).unwrap();
+        let client = crate::remote_client_interface::create_remote_client(&config, "", false).unwrap();
+        let translator = FileDownloader::new(client);
 
         translator
             .smudge_file_from_hash(
                 &xet_file.merkle_hash().expect("File hash is not a valid file hash"),
                 output_path.to_string_lossy().into(),
-                writer,
+                output_path.to_path_buf(),
                 None,
                 None,
             )
@@ -616,7 +615,6 @@ mod tests {
 
     use std::fs::{read, write};
 
-    use cas_client::SeekingOutputProvider;
     use tempfile::tempdir;
 
     use super::*;

@@ -3,8 +3,8 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use cas_client::CacheConfig;
 use cas_client::remote_client::PREFIX_DEFAULT;
-use cas_client::{CacheConfig, SeekingOutputProvider, SequentialOutput, sequential_output_from_filepath};
 use cas_object::CompressionScheme;
 use deduplication::DeduplicationMetrics;
 use lazy_static::lazy_static;
@@ -20,6 +20,7 @@ use xet_runtime::{GlobalSemaphoreHandle, XetRuntime, global_semaphore_handle, xe
 use crate::configurations::*;
 use crate::errors::DataProcessingError;
 use crate::file_upload_session::CONCURRENT_FILE_INGESTION_LIMITER;
+use crate::remote_client_interface::create_remote_client;
 use crate::{FileDownloader, FileUploadSession, XetFileInfo, errors};
 
 lazy_static! {
@@ -226,7 +227,8 @@ pub async fn download_async(
     )?;
     Span::current().record("session_id", &config.session_id);
 
-    let processor = Arc::new(FileDownloader::new(config.into()).await?);
+    let client = create_remote_client(&config, config.session_id.as_deref().unwrap_or(""), false)?;
+    let processor = Arc::new(FileDownloader::new(client));
     let updaters = match progress_updaters {
         None => vec![None; file_infos.len()],
         Some(updaters) => updaters.into_iter().map(Some).collect(),
@@ -298,25 +300,9 @@ async fn smudge_file(
     // Wrap the progress updater in the proper tracking struct.
     let progress_updater = progress_updater.map(ItemProgressUpdater::new);
 
-    if xet_config().client.reconstruct_write_sequentially {
-        let output: SequentialOutput = sequential_output_from_filepath(file_path)?;
-        info!("Using sequential writer for smudge");
-        downloader
-            .smudge_file_from_hash_sequential(
-                &file_info.merkle_hash()?,
-                file_path.into(),
-                output,
-                None,
-                progress_updater,
-            )
-            .await?;
-    } else {
-        let output = SeekingOutputProvider::new_file_provider(path);
-        info!("Using parallel writer for smudge");
-        downloader
-            .smudge_file_from_hash(&file_info.merkle_hash()?, file_path.into(), output, None, progress_updater)
-            .await?;
-    };
+    downloader
+        .smudge_file_from_hash(&file_info.merkle_hash()?, file_path.into(), path, None, progress_updater)
+        .await?;
 
     Ok(file_path.to_string())
 }
